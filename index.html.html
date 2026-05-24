@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S&P 500 – Fundamentálny Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e17;
+    --bg2: #111827;
+    --bg3: #1a2235;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8edf5;
+    --text2: #8a9ab5;
+    --text3: #4a5568;
+    --green: #22c55e;
+    --green-bg: rgba(34,197,94,0.1);
+    --yellow: #eab308;
+    --yellow-bg: rgba(234,179,8,0.1);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.1);
+    --blue: #3b82f6;
+    --blue-bg: rgba(59,130,246,0.1);
+    --accent: #60a5fa;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.5; min-height: 100vh; }
+
+  /* HEADER */
+  .header { background: var(--bg2); border-bottom: 1px solid var(--border2); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-title { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: 0.05em; color: var(--text); }
+  .header-title span { color: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .last-update { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .refresh-btn { background: var(--blue-bg); border: 1px solid rgba(59,130,246,0.3); color: var(--accent); font-family: var(--mono); font-size: 11px; padding: 6px 14px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+  .refresh-btn:hover { background: rgba(59,130,246,0.2); }
+  .refresh-btn.loading { opacity: 0.5; pointer-events: none; }
+
+  /* NAV TABS */
+  .nav { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; gap: 0; }
+  .nav-tab { font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 12px 18px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all 0.2s; letter-spacing: 0.04em; }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* MAIN */
+  .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* SCORE CARDS */
+  .score-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .score-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .score-card.main-score { grid-column: span 1; border-color: rgba(59,130,246,0.3); background: linear-gradient(135deg, var(--bg2), rgba(59,130,246,0.05)); }
+  .score-label { font-family: var(--mono); font-size: 10px; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+  .score-value { font-family: var(--mono); font-size: 28px; font-weight: 600; line-height: 1; }
+  .score-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .score-badge { display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 3px; margin-top: 6px; letter-spacing: 0.04em; }
+  .badge-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(234,179,8,0.2); }
+  .badge-red { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .badge-blue { background: var(--blue-bg); color: var(--accent); border: 1px solid rgba(59,130,246,0.2); }
+  .badge-gray { background: rgba(255,255,255,0.05); color: var(--text2); border: 1px solid var(--border); }
+
+  /* DATA TABLE */
+  .data-section { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+  .data-section-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .data-section-title { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .data-section-title.blue { color: #60a5fa; }
+  .data-section-title.green { color: #4ade80; }
+  .data-section-title.orange { color: #fb923c; }
+  .data-section-title.purple { color: #c084fc; }
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th { font-family: var(--mono); font-size: 10px; color: var(--text3); font-weight: 500; padding: 8px 16px; text-align: left; border-bottom: 1px solid var(--border); letter-spacing: 0.05em; text-transform: uppercase; }
+  .data-table th:not(:first-child) { text-align: right; }
+  .data-table td { padding: 9px 16px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .data-table td:not(:first-child) { text-align: right; font-family: var(--mono); }
+  .data-table td.label { color: var(--text); font-size: 12px; }
+  .data-table td.label.sub { color: var(--text2); padding-left: 28px; }
+  .data-table td.label.group { color: var(--text2); font-size: 10px; font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding-top: 12px; padding-bottom: 4px; background: rgba(255,255,255,0.015); }
+  .data-table td.val { color: var(--text); font-weight: 500; }
+  .data-table td.val.loading { color: var(--text3); }
+  .data-table td.prev { color: var(--text2); }
+  .data-table td.change.up { color: var(--green); }
+  .data-table td.change.down { color: var(--red); }
+  .data-table td.change.neutral { color: var(--text2); }
+  .data-table td.bench { color: var(--text3); font-size: 11px; }
+  .semaphore { display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.04em; }
+  .sem-green { background: var(--green-bg); color: var(--green); }
+  .sem-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .sem-red { background: var(--red-bg); color: var(--red); }
+  .sem-gray { background: rgba(255,255,255,0.05); color: var(--text3); }
+  .sem-loading { background: rgba(255,255,255,0.05); color: var(--text3); }
+
+  /* SPINNER */
+  .spinner { display: inline-block; width: 10px; height: 10px; border: 1.5px solid var(--text3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ERROR banner */
+  .error-banner { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: #fca5a5; display: none; }
+  .error-banner.show { display: block; }
+
+  /* NOTES */
+  .notes-row td { padding: 10px 16px !important; }
+  .notes-input { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--sans); font-size: 12px; padding: 6px 10px; width: 100%; resize: none; outline: none; transition: border-color 0.2s; }
+  .notes-input:focus { border-color: var(--border2); }
+
+  /* DASHBOARD summary */
+  .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .summary-table td { padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table td:not(:first-child) { text-align: right; font-family: var(--mono); }
+  .summary-section-name { color: var(--text); }
+  .progress-bar-wrap { background: var(--bg3); border-radius: 2px; height: 4px; width: 80px; display: inline-block; vertical-align: middle; margin-left: 8px; }
+  .progress-bar-fill { height: 4px; border-radius: 2px; transition: width 0.5s; }
+
+  /* SOURCE links */
+  .source-link { font-size: 10px; color: var(--text3); font-family: var(--mono); text-decoration: none; }
+  .source-link:hover { color: var(--accent); }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .score-grid { grid-template-columns: repeat(2, 1fr); }
+    .dash-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title"><span>S&P 500</span> — FUNDAMENTÁLNY DASHBOARD</div>
+  <div class="header-right">
+    <div class="last-update" id="lastUpdate">Posledná aktualizácia: —</div>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadAllData()">⟳ Aktualizovať</button>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-tab active" onclick="showTab('dashboard')">DASHBOARD</div>
+  <div class="nav-tab" onclick="showTab('makro')">MAKROEKONOMIKA</div>
+  <div class="nav-tab" onclick="showTab('valuacia')">VALUÁCIA</div>
+  <div class="nav-tab" onclick="showTab('earnings')">EARNINGS</div>
+  <div class="nav-tab" onclick="showTab('sentiment')">SENTIMENT</div>
+</div>
+
+<div class="main">
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- DASHBOARD -->
+  <div class="section active" id="tab-dashboard">
+    <div class="score-grid">
+      <div class="score-card main-score">
+        <div class="score-label">Celkové skóre</div>
+        <div class="score-value" id="totalScore" style="color:var(--accent)">—</div>
+        <div class="score-sub">z 100 bodov</div>
+        <div id="totalBadge" class="score-badge badge-gray">NAČÍTAVAM</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Makroekonomika</div>
+        <div class="score-value" id="macroScore">—</div>
+        <div id="macroBadge" class="score-badge badge-gray">—</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Valuácia</div>
+        <div class="score-value" id="valScore">—</div>
+        <div id="valBadge" class="score-badge badge-gray">—</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Earnings</div>
+        <div class="score-value" id="earnScore">—</div>
+        <div id="earnBadge" class="score-badge badge-gray">—</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Sentiment</div>
+        <div class="score-value" id="sentScore">—</div>
+        <div id="sentBadge" class="score-badge badge-gray">—</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="data-section">
+        <div class="data-section-header">
+          <span class="data-section-title blue">Kľúčové indikátory – snímka</span>
+        </div>
+        <table class="data-table summary-table" id="dashSnap">
+          <tr><td class="label">Načítavam dáta...</td><td></td><td></td></tr>
+        </table>
+      </div>
+      <div class="data-section">
+        <div class="data-section-header">
+          <span class="data-section-title blue">Hodnotenie sekcií</span>
+        </div>
+        <table class="data-table summary-table" id="dashSections">
+          <tr><td class="label">Načítavam dáta...</td><td></td><td></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAKROEKONOMIKA -->
+  <div class="section" id="tab-makro">
+    <div class="data-section">
+      <div class="data-section-header">
+        <span class="data-section-title blue">MAKROEKONOMIKA</span>
+        <a class="source-link" href="https://fred.stlouisfed.org" target="_blank">zdroj: FRED →</a>
+      </div>
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:30%">Indikátor</th>
+          <th>Aktuálna hodnota</th>
+          <th>Predchádzajúca</th>
+          <th>Zmena</th>
+          <th>Benchmark</th>
+          <th>Hodnotenie</th>
+        </tr></thead>
+        <tbody id="makroBody">
+          <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)"><span class="spinner"></span> Načítavam...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VALUÁCIA -->
+  <div class="section" id="tab-valuacia">
+    <div class="data-section">
+      <div class="data-section-header">
+        <span class="data-section-title green">VALUÁCIA S&P 500</span>
+        <a class="source-link" href="https://www.multpl.com" target="_blank">zdroj: multpl.com →</a>
+      </div>
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:30%">Indikátor</th>
+          <th>Aktuálna hodnota</th>
+          <th>Predchádzajúca</th>
+          <th>Zmena</th>
+          <th>Benchmark</th>
+          <th>Hodnotenie</th>
+        </tr></thead>
+        <tbody id="valuaciaBody">
+          <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)"><span class="spinner"></span> Načítavam...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EARNINGS -->
+  <div class="section" id="tab-earnings">
+    <div class="data-section">
+      <div class="data-section-header">
+        <span class="data-section-title orange">EARNINGS (ZISKY) S&P 500</span>
+        <a class="source-link" href="https://insight.factset.com/topic/earnings" target="_blank">zdroj: FactSet →</a>
+      </div>
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:30%">Indikátor</th>
+          <th>Aktuálna hodnota</th>
+          <th>Predchádzajúca</th>
+          <th>Zmena</th>
+          <th>Benchmark</th>
+          <th>Hodnotenie</th>
+        </tr></thead>
+        <tbody id="earningsBody">
+          <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)"><span class="spinner"></span> Načítavam...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SENTIMENT -->
+  <div class="section" id="tab-sentiment">
+    <div class="data-section">
+      <div class="data-section-header">
+        <span class="data-section-title purple">SENTIMENT A LIKVIDITA</span>
+        <a class="source-link" href="https://finance.yahoo.com/quote/%5EVIX" target="_blank">zdroj: Yahoo Finance / FRED →</a>
+      </div>
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:30%">Indikátor</th>
+          <th>Aktuálna hodnota</th>
+          <th>Predchádzajúca</th>
+          <th>Zmena</th>
+          <th>Benchmark</th>
+          <th>Hodnotenie</th>
+        </tr></thead>
+        <tbody id="sentimentBody">
+          <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)"><span class="spinner"></span> Načítavam...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────
+const state = {
+  makro: {},
+  valuacia: {},
+  earnings: {},
+  sentiment: {},
+  loaded: false
+};
+
+// ─── PROXY HELPERS ───────────────────────────────────────────────────
+async function proxyFetch(url) {
+  // corsproxy.io is most reliable for browser-side CORS bypass
+  const proxies = [
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+  ];
+  for (const makeUrl of proxies) {
+    try {
+      const r = await fetch(makeUrl(url), { signal: AbortSignal.timeout(8000) });
+      if (r.ok) {
+        const text = await r.text();
+        if (text && text.length > 20 && !text.includes('error') && !text.includes('not found')) return text;
+      }
+    } catch(e) { /* try next */ }
+  }
+  throw new Error('proxy failed: ' + url);
+}
+
+// ─── FRED CSV (CORS-allowed endpoint) ────────────────────────────────
+// fred.stlouisfed.org/graph/fredgraph.csv has CORS headers in browsers
+async function fredSeries(seriesId) {
+  try {
+    // Direct fetch — FRED allows this from browsers (CORS: *)
+    const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const csv = await r.text();
+    return parseFredCsv(csv, 2);
+  } catch(e) {
+    // Fallback via proxy
+    try {
+      const csv = await proxyFetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`);
+      return parseFredCsv(csv, 2);
+    } catch(e2) {
+      console.warn('FRED failed:', seriesId);
+      return null;
+    }
+  }
+}
+
+function parseFredCsv(csv, limit) {
+  const lines = csv.trim().split('\n')
+    .filter(l => l && !l.startsWith('DATE') && !l.startsWith('"'))
+    .filter(l => { const p = l.split(','); return p.length >= 2 && p[1].trim() !== '.' && p[1].trim() !== '' && !isNaN(parseFloat(p[1])); });
+  if (!lines.length) return null;
+  const last = lines[lines.length - 1].split(',');
+  const prev = lines.length > 1 ? lines[lines.length - 2].split(',') : last;
+  return { date: last[0].trim(), value: parseFloat(last[1]), prevValue: parseFloat(prev[1]) };
+}
+
+// ─── FRED YoY (compare last vs 12 months ago) ────────────────────────
+async function fredYoY(seriesId) {
+  try {
+    let csv;
+    try {
+      const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`, { signal: AbortSignal.timeout(10000) });
+      csv = await r.text();
+    } catch(e) {
+      csv = await proxyFetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`);
+    }
+    const lines = csv.trim().split('\n')
+      .filter(l => l && !l.startsWith('DATE') && !l.startsWith('"'))
+      .filter(l => { const p = l.split(','); return p.length >= 2 && p[1].trim() !== '.' && p[1].trim() !== '' && !isNaN(parseFloat(p[1])); });
+    if (lines.length < 13) return null;
+    const cur  = parseFloat(lines[lines.length - 1].split(',')[1]);
+    const prev = parseFloat(lines[lines.length - 2].split(',')[1]);
+    const y1   = parseFloat(lines[lines.length - 13].split(',')[1]);
+    const y2   = lines.length >= 14 ? parseFloat(lines[lines.length - 14].split(',')[1]) : y1;
+    return {
+      value: +((cur / y1 - 1) * 100).toFixed(2),
+      prevValue: +((prev / y2 - 1) * 100).toFixed(2),
+      date: lines[lines.length-1].split(',')[0].trim()
+    };
+  } catch(e) {
+    console.warn('FRED YoY failed:', seriesId);
+    return null;
+  }
+}
+
+// ─── YAHOO FINANCE (direct — usually CORS-friendly) ──────────────────
+async function yahooQuote(symbol) {
+  const urls = [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`,
+  ];
+  for (const url of urls) {
+    try {
+      let text;
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        text = await r.text();
+      } catch(e) {
+        text = await proxyFetch(url);
+      }
+      const data = JSON.parse(text);
+      const result = data.chart.result[0];
+      const closes = result.indicators.quote[0].close.filter(v => v !== null);
+      if (!closes.length) continue;
+      const cur = closes[closes.length - 1];
+      const prevVal = closes.length > 1 ? closes[closes.length - 2] : cur;
+      return { value: +cur.toFixed(2), prevValue: +prevVal.toFixed(2) };
+    } catch(e) { /* try next */ }
+  }
+  console.warn('Yahoo failed:', symbol);
+  return null;
+}
+
+// ─── multpl.com — parse RSS feed (simpler than HTML) ─────────────────
+async function multplScrape(path) {
+  // Use RSS feed which has clean value in <description>
+  const rssPath = path.endsWith('/') ? path + 'rss/' : path + '/rss/';
+  try {
+    let text;
+    try {
+      const r = await fetch(`https://www.multpl.com${rssPath}`, { signal: AbortSignal.timeout(8000) });
+      text = await r.text();
+    } catch(e) {
+      text = await proxyFetch(`https://www.multpl.com${rssPath}`);
+    }
+    // RSS <description> first item has the current value like "27.45"
+    const match = text.match(/<description><!\[CDATA\[([^\]]+)\]\]><\/description>/);
+    if (match) {
+      const numMatch = match[1].match(/([\d,]+\.?\d*)/);
+      if (numMatch) {
+        const val = parseFloat(numMatch[1].replace(/,/g,''));
+        if (!isNaN(val) && val > 0 && val < 500) return { value: val, prevValue: null };
+      }
+    }
+    // Fallback: try HTML
+    return await multplScrapeHtml(path);
+  } catch(e) {
+    return await multplScrapeHtml(path);
+  }
+}
+
+async function multplScrapeHtml(path) {
+  try {
+    const text = await proxyFetch(`https://www.multpl.com${path}`);
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    for (const sel of ['#current-month-value', '#spvalue', '.current-value', 'td.col-2']) {
+      const el = doc.querySelector(sel);
+      if (el) {
+        const m = el.textContent.trim().match(/([\d,]+\.?\d*)/);
+        if (m) {
+          const val = parseFloat(m[1].replace(/,/g,''));
+          if (!isNaN(val) && val > 0 && val < 500) return { value: val, prevValue: null };
+        }
+      }
+    }
+    return null;
+  } catch(e) {
+    return null;
+  }
+}
+
+// ─── LOAD ALL DATA ────────────────────────────────────────────────────
+async function loadAllData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('loading');
+  btn.textContent = '⟳ Načítavam...';
+
+  setLoadingAll();
+
+  try {
+    await Promise.all([
+      loadMakro(),
+      loadValuacia(),
+      loadEarnings(),
+      loadSentiment()
+    ]);
+
+    state.loaded = true;
+    renderAll();
+    document.getElementById('lastUpdate').textContent =
+      'Posledná aktualizácia: ' + new Date().toLocaleString('sk-SK');
+
+  } catch(e) {
+    showError('Niektoré dáta sa nepodarilo načítať. Skúste znova.');
+  }
+
+  btn.classList.remove('loading');
+  btn.textContent = '⟳ Aktualizovať';
+}
+
+function setLoadingAll() {
+  ['makroBody','valuaciaBody','earningsBody','sentimentBody'].forEach(id => {
+    document.getElementById(id).innerHTML =
+      `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)"><span class="spinner"></span> Načítavam...</td></tr>`;
+  });
+}
+
+// ─── LOAD MAKRO ───────────────────────────────────────────────────────
+async function loadMakro() {
+  // Parallel fetch — all valid FRED series IDs
+  const [fedfunds, dgs10, dgs2, gdp, payroll, unrate,
+         cpiYoY, coreCpiYoY, pceYoY, corePceYoY] = await Promise.all([
+    fredSeries('FEDFUNDS'),      // Fed funds rate effective
+    fredSeries('DGS10'),         // 10Y Treasury
+    fredSeries('DGS2'),          // 2Y Treasury
+    fredSeries('A191RL1Q225SBEA'), // Real GDP QoQ annualized
+    fredSeries('PAYEMS'),        // Non-farm payrolls (thousands)
+    fredSeries('UNRATE'),        // Unemployment rate
+    fredYoY('CPIAUCSL'),         // CPI YoY %
+    fredYoY('CPILFESL'),         // Core CPI YoY %
+    fredYoY('PCEPI'),            // PCE YoY %
+    fredYoY('PCEPILFE'),         // Core PCE YoY %
+  ]);
+
+  const spread = (dgs10 && dgs2)
+    ? { value: +(dgs10.value - dgs2.value).toFixed(2), prevValue: +(dgs10.prevValue - dgs2.prevValue).toFixed(2) }
+    : null;
+
+  // NFP change MoM (thousands)
+  const payrollChange = payroll
+    ? { value: payroll.value - payroll.prevValue, prevValue: null }
+    : null;
+
+  state.makro = {
+    fedfunds, dgs10, dgs2, spread, gdp,
+    payroll, payrollChange, unrate,
+    cpiYoY, coreCpiYoY, pceYoY, corePceYoY
+  };
+}
+
+// ─── LOAD VALUÁCIA ────────────────────────────────────────────────────
+async function loadValuacia() {
+  // FRED has SP500 earnings; multpl has P/E and CAPE via scraping
+  const [dgs10, [mTrailPE, mCAPE, mPS, mPB]] = await Promise.all([
+    fredSeries('DGS10'),
+    Promise.all([
+      multplScrape('/s-p-500-pe-ratio'),
+      multplScrape('/shiller-pe'),
+      multplScrape('/s-p-500-price-to-sales'),
+      multplScrape('/s-p-500-price-to-book'),
+    ])
+  ]);
+
+  // Forward P/E: approximate as trailing * 0.93 (historically fwd is ~7% lower)
+  const fwdPE = mTrailPE ? { value: +(mTrailPE.value * 0.93).toFixed(1), prevValue: null } : null;
+
+  state.valuacia = { trailPE: mTrailPE, fwdPE, cape: mCAPE, priceBook: mPB, priceSales: mPS, dgs10 };
+}
+
+// ─── LOAD EARNINGS ────────────────────────────────────────────────────
+async function loadEarnings() {
+  // EPS data from FRED: SP500 earnings
+  const [sp500earn] = await Promise.all([
+    fredSeries('SP500EARNINGS')
+  ]);
+
+  state.earnings = {
+    sp500earn,
+    // Static reference values (updated manually / FactSet)
+    beatRate: { value: 76, prevValue: 74 },
+    netMargin: { value: 11.8, prevValue: 11.5 },
+    nextSeason: 'júl 2025',
+    lastSeason: 'apr 2025'
+  };
+}
+
+// ─── LOAD SENTIMENT ───────────────────────────────────────────────────
+async function loadSentiment() {
+  const [vix, dxy, m2, fedbalance] = await Promise.all([
+    yahooQuote('%5EVIX'),
+    yahooQuote('DX-Y.NYB'),
+    fredSeries('M2SL'),
+    fredSeries('WALCL')
+  ]);
+
+  state.sentiment = { vix, dxy, m2, fedbalance };
+}
+
+// ─── SEMAPHORE LOGIC ──────────────────────────────────────────────────
+function sem(cls, label) {
+  return `<span class="semaphore sem-${cls}">${label}</span>`;
+}
+
+function semFromClass(cls) {
+  const map = { green: 'ZELENÁ', yellow: 'ŽLTÁ', red: 'ČERVENÁ' };
+  return sem(cls, map[cls] || '—');
+}
+
+function semSpread(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  return val > 0 ? sem('green', 'ZELENÁ') : sem('red', 'ČERVENÁ');
+}
+function semInflation(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val <= 2.5) return sem('green', 'ZELENÁ');
+  if (val <= 4) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semGDP(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val >= 2) return sem('green', 'ZELENÁ');
+  if (val >= 0) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semPMI(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val >= 52) return sem('green', 'ZELENÁ');
+  if (val >= 50) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semCAPE(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val <= 20) return sem('green', 'ZELENÁ');
+  if (val <= 30) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semPE(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val <= 18) return sem('green', 'ZELENÁ');
+  if (val <= 25) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semERP(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val >= 2) return sem('green', 'ZELENÁ');
+  if (val >= 0) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semVIX(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val < 15) return sem('green', 'ZELENÁ');
+  if (val < 25) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+function semPutCall(val) {
+  if (val === null || isNaN(val)) return sem('gray', '—');
+  if (val < 0.7) return sem('green', 'ZELENÁ');
+  if (val < 1.0) return sem('yellow', 'ŽLTÁ');
+  return sem('red', 'ČERVENÁ');
+}
+
+function fmt(val, decimals = 2, suffix = '') {
+  if (val === null || val === undefined || isNaN(val)) return '<span style="color:var(--text3)">—</span>';
+  return val.toFixed(decimals) + suffix;
+}
+
+function fmtChange(cur, prev, decimals = 2, suffix = '') {
+  if (cur === null || prev === null || isNaN(cur) || isNaN(prev)) return '<span style="color:var(--text3)">—</span>';
+  const diff = cur - prev;
+  const cls = diff > 0.001 ? 'up' : diff < -0.001 ? 'down' : 'neutral';
+  const sign = diff > 0 ? '+' : '';
+  return `<span class="change ${cls}">${sign}${diff.toFixed(decimals)}${suffix}</span>`;
+}
+
+function row(label, cur, prev, change, bench, semHtml, isGroup = false, isSub = false) {
+  const labelCls = isGroup ? 'label group' : isSub ? 'label sub' : 'label';
+  if (isGroup) return `<tr><td class="${labelCls}" colspan="6">${label}</td></tr>`;
+  return `<tr>
+    <td class="${labelCls}">${label}</td>
+    <td class="val">${cur}</td>
+    <td class="prev">${prev}</td>
+    <td>${change}</td>
+    <td class="bench">${bench}</td>
+    <td>${semHtml}</td>
+  </tr>`;
+}
+
+// ─── RENDER MAKRO ─────────────────────────────────────────────────────
+function renderMakro() {
+  const m = state.makro;
+  const v = (d) => d ? d.value : null;
+  const p = (d) => d ? d.prevValue : null;
+
+  const fedfunds_v = v(m.fedfunds);
+  const dgs10_v = v(m.dgs10);
+  const dgs2_v = v(m.dgs2);
+  const spread_v = v(m.spread);
+  const unrate_v = v(m.unrate);
+  const gdp_v = v(m.gdp);
+  const cpi_v = v(m.cpiYoY);
+  const corecpi_v = v(m.coreCpiYoY);
+  const pce_v = v(m.pceYoY);
+  const corepce_v = v(m.corePceYoY);
+
+  let rows = '';
+  rows += row('Úrokové sadzby a výnosy', '', '', '', '', '', true);
+  rows += row('Fed funds rate (aktuálna)', fmt(fedfunds_v, 2) + ' %', fmt(p(m.fedfunds), 2) + ' %', fmtChange(fedfunds_v, p(m.fedfunds), 2, ' %'), 'Neutrálna ~2,5 %', fedfunds_v ? (fedfunds_v <= 3 ? sem('green','ZELENÁ') : fedfunds_v <= 4.5 ? sem('yellow','ŽLTÁ') : sem('red','ČERVENÁ')) : sem('gray','—'));
+  rows += row('10Y Treasury výnos', fmt(dgs10_v, 2) + ' %', fmt(p(m.dgs10), 2) + ' %', fmtChange(dgs10_v, p(m.dgs10), 2, ' %'), 'Benchmark dlhopisy', sem('gray', '—'));
+  rows += row('2Y Treasury výnos', fmt(dgs2_v, 2) + ' %', fmt(p(m.dgs2), 2) + ' %', fmtChange(dgs2_v, p(m.dgs2), 2, ' %'), 'Benchmark krátkodobé', sem('gray', '—'));
+  rows += row('Spread 10Y−2Y (p.b.)', fmt(spread_v, 2), fmt(p(m.spread), 2), fmtChange(spread_v, p(m.spread), 2), 'Kladný = zdravá krivka', semSpread(spread_v));
+
+  rows += row('Inflácia (YoY %)', '', '', '', '', '', true);
+  rows += row('CPI YoY %', fmt(cpi_v, 2) + ' %', fmt(p(m.cpiYoY), 2) + ' %', fmtChange(cpi_v, p(m.cpiYoY), 2, ' %'), 'Cieľ ~2 %', semInflation(cpi_v));
+  rows += row('Core CPI YoY %', fmt(corecpi_v, 2) + ' %', fmt(p(m.coreCpiYoY), 2) + ' %', fmtChange(corecpi_v, p(m.coreCpiYoY), 2, ' %'), 'Cieľ ~2 %', semInflation(corecpi_v));
+  rows += row('PCE YoY %', fmt(pce_v, 2) + ' %', fmt(p(m.pceYoY), 2) + ' %', fmtChange(pce_v, p(m.pceYoY), 2, ' %'), 'Preferovaná metrika Fedu', semInflation(pce_v));
+  rows += row('Core PCE YoY %', fmt(corepce_v, 2) + ' %', fmt(p(m.corePceYoY), 2) + ' %', fmtChange(corepce_v, p(m.corePceYoY), 2, ' %'), 'Cieľ Fedu: ~2 %', semInflation(corepce_v));
+
+  rows += row('Rast a aktivita', '', '', '', '', '', true);
+  rows += row('HDP rast QoQ annualized', fmt(gdp_v, 1) + ' %', fmt(p(m.gdp), 1) + ' %', fmtChange(gdp_v, p(m.gdp), 1, ' %'), 'Trend ~2 %', semGDP(gdp_v));
+  rows += row('ISM Manufacturing PMI', '—', '—', '—', '>50 = expanzia', sem('gray', 'manuálne'));
+  rows += row('ISM Services PMI', '—', '—', '—', '>50 = expanzia', sem('gray', 'manuálne'));
+
+  rows += row('Trh práce', '', '', '', '', '', true);
+  const pay_v = v(m.payroll);
+  const pay_p = p(m.payroll);
+  const nfp_change = (pay_v && pay_p) ? pay_v - pay_p : null;
+  rows += row('Non-farm payrolls (MoM zmena)', nfp_change ? (nfp_change > 0 ? '+' : '') + nfp_change.toFixed(0) + ' tis.' : '—', '—', '—', 'Zdravé ~150–250 tis./mes.', nfp_change ? (nfp_change >= 150 ? sem('green','ZELENÁ') : nfp_change >= 50 ? sem('yellow','ŽLTÁ') : sem('red','ČERVENÁ')) : sem('gray','—'));
+  rows += row('Miera nezamestnanosti', fmt(unrate_v, 1) + ' %', fmt(p(m.unrate), 1) + ' %', fmtChange(unrate_v, p(m.unrate), 1, ' %'), 'Prirodzená ~4 %', unrate_v ? (unrate_v < 4.5 ? sem('green','ZELENÁ') : unrate_v < 6 ? sem('yellow','ŽLTÁ') : sem('red','ČERVENÁ')) : sem('gray','—'));
+
+  document.getElementById('makroBody').innerHTML = rows;
+}
+
+// ─── RENDER VALUÁCIA ──────────────────────────────────────────────────
+function renderValuacia() {
+  const v = state.valuacia;
+  const trailPE = v.trailPE ? v.trailPE.value : null;
+  const fwdPE = v.fwdPE ? v.fwdPE.value : null;
+  const cape = v.cape ? v.cape.value : null;
+  const dgs10 = v.dgs10 ? v.dgs10.value : null;
+
+  const ey = fwdPE ? +(100 / fwdPE).toFixed(2) : null;
+  const erp = (ey !== null && dgs10 !== null) ? +(ey - dgs10).toFixed(2) : null;
+
+  const trailPE_dev = (trailPE && 16.5) ? +((trailPE/16.5 - 1)*100).toFixed(1) : null;
+  const cape_dev = (cape && 17) ? +((cape/17 - 1)*100).toFixed(1) : null;
+
+  let rows = '';
+  rows += row('P/E ratios', '', '', '', '', '', true);
+  rows += row('Trailing P/E S&P 500', fmt(trailPE, 1) + '×', '—', '—', 'Hist. priemer ~16,5×', semPE(trailPE));
+  rows += row('Forward P/E S&P 500', fmt(fwdPE, 1) + '×', '—', '—', 'Hist. priemer ~16,5×', semPE(fwdPE));
+  rows += row('Odchýlka Forward P/E od priemeru', fmt(trailPE_dev, 1) + ' %', '—', '—', '0 % = priemer', trailPE_dev ? (trailPE_dev > 50 ? sem('red','DRAHÉ') : trailPE_dev > 20 ? sem('yellow','ZVÝŠENÉ') : sem('green','NORMÁLNE')) : sem('gray','—'));
+
+  rows += row('Shiller CAPE', '', '', '', '', '', true);
+  rows += row('Shiller CAPE ratio', fmt(cape, 1) + '×', '—', '—', 'Hist. priemer ~17×', semCAPE(cape));
+  rows += row('Odchýlka CAPE od priemeru', fmt(cape_dev, 1) + ' %', '—', '—', '0 % = priemer', cape_dev ? (cape_dev > 50 ? sem('red','DRAHÉ') : sem('yellow','ZVÝŠENÉ')) : sem('gray','—'));
+
+  rows += row('Výnosy a riziková prirážka', '', '', '', '', '', true);
+  rows += row('Earnings yield (= 1 / Fwd P/E)', fmt(ey, 2) + ' %', '—', '—', 'Porovnaj s 10Y výnosom', sem('gray', '—'));
+  rows += row('Equity Risk Premium (EY − 10Y)', fmt(erp, 2) + ' %', '—', '—', '>2 % = akcie atraktívne', semERP(erp));
+
+  rows += row('Cenové násoby', '', '', '', '', '', true);
+  const ps = v.priceSales ? v.priceSales.value : null;
+  const pb = v.priceBook ? v.priceBook.value : null;
+  rows += row('Price / Sales ratio', fmt(ps, 2) + '×', '—', '—', 'Hist. priemer ~1,7×', ps ? (ps > 3 ? sem('red','DRAHÉ') : ps > 2 ? sem('yellow','ZVÝŠENÉ') : sem('green','NORMÁLNE')) : sem('gray','—'));
+  rows += row('Price / Book ratio', fmt(pb, 2) + '×', '—', '—', 'Hist. priemer ~3,0×', pb ? (pb > 5 ? sem('red','DRAHÉ') : pb > 3.5 ? sem('yellow','ZVÝŠENÉ') : sem('green','NORMÁLNE')) : sem('gray','—'));
+  rows += row('Buffett indicator', '—', '—', '—', '<100 % = zdravé', sem('gray', 'manuálne'));
+
+  document.getElementById('valuaciaBody').innerHTML = rows;
+}
+
+// ─── RENDER EARNINGS ──────────────────────────────────────────────────
+function renderEarnings() {
+  const e = state.earnings;
+  const earn = e.sp500earn ? e.sp500earn.value : null;
+  const prevEarn = e.sp500earn ? e.sp500earn.prevValue : null;
+
+  let rows = '';
+  rows += row('EPS', '', '', '', '', '', true);
+  rows += row('S&P 500 Earnings (FRED index)', fmt(earn, 2), fmt(prevEarn, 2), fmtChange(earn, prevEarn, 2), 'Dlhodobý rast ~7 % p.a.', earn && prevEarn && earn > prevEarn ? sem('green','RASTIE') : sem('yellow','SLEDUJ'));
+  rows += row('Forward EPS odhad (12M)', '—', '—', '—', 'FactSet konsenzus', sem('gray', 'manuálne'));
+  rows += row('EPS rast YoY', '—', '—', '—', 'Dlhodobý priemer ~7 %', sem('gray', 'manuálne'));
+  rows += row('Konsenzus odhad analytikov', '—', '—', '—', '—', sem('gray', 'manuálne'));
+
+  rows += row('Výsledková sezóna', '', '', '', '', '', true);
+  rows += row('Beat rate poslednej sezóny', fmt(e.beatRate ? e.beatRate.value : null, 0) + ' %', fmt(e.beatRate ? e.beatRate.prevValue : null, 0) + ' %', fmtChange(e.beatRate ? e.beatRate.value : null, e.beatRate ? e.beatRate.prevValue : null, 0, ' %'), 'Hist. priemer ~75 %', e.beatRate && e.beatRate.value >= 70 ? sem('green','ZELENÁ') : sem('yellow','ŽLTÁ'));
+  rows += row('Net profit margin S&P 500', fmt(e.netMargin ? e.netMargin.value : null, 1) + ' %', fmt(e.netMargin ? e.netMargin.prevValue : null, 1) + ' %', fmtChange(e.netMargin ? e.netMargin.value : null, e.netMargin ? e.netMargin.prevValue : null, 1, ' %'), 'Hist. priemer ~11 %', sem('green', 'ZELENÁ'));
+  rows += row('Dátum poslednej výsledkovej sezóny', e.lastSeason, '—', '—', '—', sem('gray', '—'));
+  rows += row('Dátum ďalšej výsledkovej sezóny', e.nextSeason, '—', '—', '—', sem('gray', '—'));
+
+  document.getElementById('earningsBody').innerHTML = rows;
+}
+
+// ─── RENDER SENTIMENT ─────────────────────────────────────────────────
+function renderSentiment() {
+  const s = state.sentiment;
+  const vix = s.vix ? s.vix.value : null;
+  const dxy = s.dxy ? s.dxy.value : null;
+  const m2 = s.m2 ? s.m2.value : null;
+  const fed = s.fedbalance ? s.fedbalance.value : null;
+
+  let rows = '';
+  rows += row('Volatilita a opcie', '', '', '', '', '', true);
+  rows += row('VIX index', fmt(vix, 1), fmt(s.vix ? s.vix.prevValue : null, 1), fmtChange(vix, s.vix ? s.vix.prevValue : null, 1), '<15 pokoj, >25 stres', semVIX(vix));
+  rows += row('Put/Call ratio', '—', '—', '—', '<0,7 býčí, >1,0 medvedí', sem('gray', 'manuálne'));
+  rows += row('CNN Fear & Greed Index', '—', '—', '—', '50 = neutrálne', sem('gray', 'manuálne'));
+
+  rows += row('Investor sentiment (AAII)', '', '', '', '', '', true);
+  rows += row('AAII Bulls (%)', '—', '—', '—', 'Hist. priemer ~38 %', sem('gray', 'manuálne'));
+  rows += row('AAII Bears (%)', '—', '—', '—', 'Hist. priemer ~30 %', sem('gray', 'manuálne'));
+  rows += row('AAII Bull-Bear spread', '—', '—', '—', 'Hist. priemer ~6 p.b.', sem('gray', 'manuálne'));
+
+  rows += row('Likvidita a mena', '', '', '', '', '', true);
+  rows += row('Fed bilancia (bil. USD)', fed ? (fed/1e6).toFixed(2) + ' bil.' : '—', s.fedbalance ? (s.fedbalance.prevValue/1e6).toFixed(2) + ' bil.' : '—', '—', 'Rastie = pozitívne pre akcie', sem('gray', '—'));
+  rows += row('M2 peňažná zásoba (mld. USD)', m2 ? m2.toFixed(0) : '—', s.m2 ? s.m2.prevValue.toFixed(0) : '—', fmtChange(m2, s.m2 ? s.m2.prevValue : null, 0), 'Dlhodobý priemer ~6 % YoY', sem('gray', '—'));
+  rows += row('USD index (DXY)', fmt(dxy, 1), fmt(s.dxy ? s.dxy.prevValue : null, 1), fmtChange(dxy, s.dxy ? s.dxy.prevValue : null, 1), 'Silný USD = tlak na zisky', dxy ? (dxy > 105 ? sem('yellow','SILNÝ') : dxy < 95 ? sem('green','SLABÝ') : sem('green','NEUTRÁL')) : sem('gray','—'));
+
+  document.getElementById('sentimentBody').innerHTML = rows;
+}
+
+// ─── SCORING ──────────────────────────────────────────────────────────
+function computeScores() {
+  const m = state.makro;
+  const v = state.valuacia;
+  const e = state.earnings;
+  const s = state.sentiment;
+
+  // Macro score (0-100)
+  let macroPoints = 0, macroMax = 0;
+  const spread = m.spread ? m.spread.value : null;
+  if (spread !== null) { macroPoints += spread > 0 ? 20 : 0; macroMax += 20; }
+  const gdp = m.gdp ? m.gdp.value : null;
+  if (gdp !== null) { macroPoints += gdp >= 2 ? 20 : gdp >= 0 ? 10 : 0; macroMax += 20; }
+  const unrate = m.unrate ? m.unrate.value : null;
+  if (unrate !== null) { macroPoints += unrate < 5 ? 20 : unrate < 6 ? 10 : 0; macroMax += 20; }
+  const macroScore = macroMax > 0 ? Math.round((macroPoints / macroMax) * 100) : null;
+
+  // Valuation score
+  let valPoints = 0, valMax = 0;
+  const cape = v.cape ? v.cape.value : null;
+  if (cape !== null) { valPoints += cape <= 20 ? 25 : cape <= 30 ? 12 : 0; valMax += 25; }
+  const fwdPE = v.fwdPE ? v.fwdPE.value : null;
+  if (fwdPE !== null) { valPoints += fwdPE <= 18 ? 25 : fwdPE <= 25 ? 12 : 0; valMax += 25; }
+  const dgs10 = v.dgs10 ? v.dgs10.value : null;
+  const ey = fwdPE ? 100 / fwdPE : null;
+  const erp = (ey && dgs10) ? ey - dgs10 : null;
+  if (erp !== null) { valPoints += erp >= 2 ? 25 : erp >= 0 ? 12 : 0; valMax += 25; }
+  const valScore = valMax > 0 ? Math.round((valPoints / valMax) * 100) : null;
+
+  // Earnings score (static from reference data)
+  const earnScore = e.beatRate && e.beatRate.value >= 70 ? 72 : 50;
+
+  // Sentiment score
+  const vix = s.vix ? s.vix.value : null;
+  const sentScore = vix ? (vix < 15 ? 80 : vix < 25 ? 60 : 30) : null;
+
+  // Total weighted
+  const scores = [macroScore, valScore, earnScore, sentScore].filter(x => x !== null);
+  const totalScore = scores.length > 0 ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : null;
+
+  return { macroScore, valScore, earnScore, sentScore, totalScore };
+}
+
+function scoreBadge(score) {
+  if (score === null) return ['badge-gray', 'NAČÍTAVAM'];
+  if (score >= 70) return ['badge-green', 'PRIAZNIVÉ'];
+  if (score >= 50) return ['badge-yellow', 'NEUTRÁLNE'];
+  if (score >= 30) return ['badge-yellow', 'OPATRNOSŤ'];
+  return ['badge-red', 'RIZIKOVÉ'];
+}
+
+function scoreColor(score) {
+  if (score === null) return 'var(--text2)';
+  if (score >= 70) return 'var(--green)';
+  if (score >= 50) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+function renderDashboard() {
+  const scores = computeScores();
+
+  document.getElementById('totalScore').textContent = scores.totalScore !== null ? scores.totalScore : '—';
+  document.getElementById('totalScore').style.color = scoreColor(scores.totalScore);
+  const [tCls, tLabel] = scoreBadge(scores.totalScore);
+  document.getElementById('totalBadge').className = `score-badge ${tCls}`;
+  document.getElementById('totalBadge').textContent = tLabel;
+
+  const secs = ['macro','val','earn','sent'];
+  const vals = [scores.macroScore, scores.valScore, scores.earnScore, scores.sentScore];
+  const ids = ['macro','val','earn','sent'];
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id + 'Score');
+    const badge = document.getElementById(id + 'Badge');
+    if (el) { el.textContent = vals[i] !== null ? vals[i] : '—'; el.style.color = scoreColor(vals[i]); }
+    if (badge) {
+      const [cls, lbl] = scoreBadge(vals[i]);
+      badge.className = `score-badge ${cls}`;
+      badge.textContent = lbl;
+    }
+  });
+
+  // Snap table
+  const m = state.makro;
+  const v = state.valuacia;
+  const s = state.sentiment;
+  const spread = m.spread ? m.spread.value : null;
+  const vix = s.vix ? s.vix.value : null;
+  const cape = v.cape ? v.cape.value : null;
+  const fwdPE = v.fwdPE ? v.fwdPE.value : null;
+
+  document.getElementById('dashSnap').innerHTML = `
+    <thead><tr>
+      <th>Indikátor</th><th style="text-align:right">Hodnota</th><th style="text-align:right">Hodnotenie</th>
+    </tr></thead>
+    <tbody>
+    <tr><td class="label">Fed funds rate</td><td style="text-align:right;font-family:var(--mono)">${fmt(m.fedfunds ? m.fedfunds.value : null)} %</td><td style="text-align:right">${sem('gray','—')}</td></tr>
+    <tr><td class="label">10Y Treasury výnos</td><td style="text-align:right;font-family:var(--mono)">${fmt(m.dgs10 ? m.dgs10.value : null)} %</td><td style="text-align:right">${sem('gray','—')}</td></tr>
+    <tr><td class="label">Spread 10Y−2Y</td><td style="text-align:right;font-family:var(--mono)">${fmt(spread, 2)} p.b.</td><td style="text-align:right">${semSpread(spread)}</td></tr>
+    <tr><td class="label">HDP rast QoQ</td><td style="text-align:right;font-family:var(--mono)">${fmt(m.gdp ? m.gdp.value : null, 1)} %</td><td style="text-align:right">${semGDP(m.gdp ? m.gdp.value : null)}</td></tr>
+    <tr><td class="label">Forward P/E</td><td style="text-align:right;font-family:var(--mono)">${fmt(fwdPE, 1)}×</td><td style="text-align:right">${semPE(fwdPE)}</td></tr>
+    <tr><td class="label">Shiller CAPE</td><td style="text-align:right;font-family:var(--mono)">${fmt(cape, 1)}×</td><td style="text-align:right">${semCAPE(cape)}</td></tr>
+    <tr><td class="label">VIX index</td><td style="text-align:right;font-family:var(--mono)">${fmt(vix, 1)}</td><td style="text-align:right">${semVIX(vix)}</td></tr>
+    <tr><td class="label">USD index (DXY)</td><td style="text-align:right;font-family:var(--mono)">${fmt(s.dxy ? s.dxy.value : null, 1)}</td><td style="text-align:right">${sem('gray','—')}</td></tr>
+    </tbody>
+  `;
+
+  document.getElementById('dashSections').innerHTML = `
+    <thead><tr>
+      <th>Sekcia</th><th style="text-align:right">Skóre</th><th style="text-align:right">Stav</th>
+    </tr></thead>
+    <tbody>
+    <tr><td class="label">Makroekonomika</td><td style="text-align:right;font-family:var(--mono);color:${scoreColor(scores.macroScore)}">${scores.macroScore !== null ? scores.macroScore : '—'}</td><td style="text-align:right">${semFromClass(scores.macroScore >= 70 ? 'green' : scores.macroScore >= 50 ? 'yellow' : 'red')}</td></tr>
+    <tr><td class="label">Valuácia</td><td style="text-align:right;font-family:var(--mono);color:${scoreColor(scores.valScore)}">${scores.valScore !== null ? scores.valScore : '—'}</td><td style="text-align:right">${semFromClass(scores.valScore >= 70 ? 'green' : scores.valScore >= 50 ? 'yellow' : 'red')}</td></tr>
+    <tr><td class="label">Earnings</td><td style="text-align:right;font-family:var(--mono);color:${scoreColor(scores.earnScore)}">${scores.earnScore !== null ? scores.earnScore : '—'}</td><td style="text-align:right">${semFromClass(scores.earnScore >= 70 ? 'green' : scores.earnScore >= 50 ? 'yellow' : 'red')}</td></tr>
+    <tr><td class="label">Sentiment & likvidita</td><td style="text-align:right;font-family:var(--mono);color:${scoreColor(scores.sentScore)}">${scores.sentScore !== null ? scores.sentScore : '—'}</td><td style="text-align:right">${semFromClass(scores.sentScore >= 70 ? 'green' : scores.sentScore >= 50 ? 'yellow' : 'red')}</td></tr>
+    </tbody>
+  `;
+}
+
+// ─── RENDER ALL ───────────────────────────────────────────────────────
+function renderAll() {
+  renderMakro();
+  renderValuacia();
+  renderEarnings();
+  renderSentiment();
+  renderDashboard();
+}
+
+// ─── TAB SWITCHING ────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function showError(msg) {
+  const b = document.getElementById('errorBanner');
+  b.textContent = msg;
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 6000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────
+loadAllData();
+</script>
+</body>
+</html>
